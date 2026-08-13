@@ -10,6 +10,7 @@ import { createInvoiceWorkbook } from "../lib/excel/export-invoices.ts";
 import { parseDocumentPages, segmentInvoicePages } from "../lib/invoices/segment.ts";
 import type { ExtractedPage } from "../lib/invoices/types.ts";
 import { clearDeliveryNoteBatch, clearInvoiceBatch, combinedDocumentBatches, replaceDeliveryNoteBatch, replaceInvoiceBatch } from "../lib/invoices/batch-state.ts";
+import { kerryLayoutTokens } from "./fixtures/kerry-layout-tokens.ts";
 
 const header = (number: string) => `TIPO DOCUMENTO: 01 - FACTURA\nNo.: ${number}\nFECHA DE EMISION: 2022-07-27T17:22:59\nCLAVE NUMERICA: 50627072200310101653500100001010000053274110356535`;
 const page = (pageNumber: number, text: string): ExtractedPage => ({ pageNumber, text, sourceType: "Texto" });
@@ -63,6 +64,14 @@ test("Kerry extrae referencias y fecha desde tokens alineados a la derecha", () 
   ];
   const invoice = extractInvoice("TIPO DOCUMENTO: 01 - FACTURA\nNo.: 00100001010000053274\nBaltimore Spice Central America S.A.", { id: "layout", fileName: "factura.pdf", fileSize: 1, sourceType: "Texto", pageCount: 1 }, tokens);
   assert.equal(invoice.date.normalizedValue, "2022-07-27"); assert.equal(invoice.deliveryNumber?.normalizedValue, "810954472"); assert.equal(invoice.purchaseOrder.normalizedValue, "Case 04814210");
+});
+
+test("fixture Kerry posicional extrae referencias, pesos y tres productos sin contaminación", () => {
+  const text = kerryLayoutTokens.map((token) => token.text).join("\n");
+  const invoice = extractInvoice(text, { id:"kerry-layout-real",fileName:"kerry.pdf",fileSize:1,sourceType:"Texto",pageCount:1 }, kerryLayoutTokens);
+  assert.equal(invoice.deliveryNumber?.normalizedValue,"810954472"); assert.equal(invoice.orderNumber?.normalizedValue,"19458409"); assert.equal(invoice.internalDocument?.normalizedValue,"60458751"); assert.equal(invoice.purchaseOrder.normalizedValue,"Case 04814210"); assert.equal(invoice.date.normalizedValue,"2022-07-27"); assert.equal(invoice.supplier.normalizedValue,"Baltimore Spice Central America S.A."); assert.equal(invoice.supplierId.normalizedValue,"3101016535"); assert.equal(invoice.items.length,3);
+  assert.deepEqual(invoice.items.map(item=>[item.code.normalizedValue,item.lot,item.quantity.normalizedValue,item.unitPrice.normalizedValue,item.lineTotal.normalizedValue]),[["20659503","0006162626",125,2534.51,316814.06],["20659503","0006205532",125,2534.51,316814.06],["20659840","0006188047",200,1723.47,344693.70]]);
+  assert.equal(invoice.totalGrossWeight?.normalizedValue,483); assert.equal(invoice.totalNetWeight?.normalizedValue,450); assert.equal(invoice.incoterm?.normalizedValue,"DDP SAN JOSE"); assert.doesNotMatch(invoice.incoterm?.normalizedValue??"",/Total Peso/i); assert.notEqual(invoice.deliveryNumber?.normalizedValue,"ENTREGADO EN");
 });
 
 test("reconstruye una descripción multilínea Kerry", () => {

@@ -31,7 +31,7 @@ export type UploadedDocument = {
   currentPage?: number; ocrProgress?: number | null; error?: string;
   batchType?: "invoice" | "delivery_note";
 };
-export type PdfTextToken = { text: string; x: number; y: number; width: number; height: number };
+export type PdfTextToken = { text: string; x: number; y: number; width: number; height: number; page?: number };
 export type ExtractedPage = { pageNumber: number; text: string; sourceType: "Texto" | "OCR"; tokens?: PdfTextToken[] };
 export type ProcessingOptions = { signal?: AbortSignal; onProgress?: (progress: number, label: string, detectedInvoices?: number, pageNumber?: number, pageCount?: number, ocrProgress?: number | null) => void };
 export type DocumentProcessingOptions = ProcessingOptions & { expectedDocumentType?: "invoice" | "delivery_note"; onPageDebug?: (entry: { page: number; preview: string; documentType: Invoice["documentType"]; deliveryNumber: string | null }) => void };

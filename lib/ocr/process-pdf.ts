@@ -3,12 +3,12 @@ import type { DocumentProcessingOptions, ExtractedPage, PdfTextToken, UploadedDo
 
 const PDF_TEXT_THRESHOLD = 30;
 
-function tokensFromContent(items: unknown[]): PdfTextToken[] {
+function tokensFromContent(items: unknown[], page: number): PdfTextToken[] {
   return items.flatMap((entry) => {
     if (!entry || typeof entry !== "object" || !("str" in entry) || !("transform" in entry)) return [];
     const item = entry as { str: string; transform: number[]; width?: number; height?: number };
     if (!item.str.trim()) return [];
-    return [{ text: item.str.trim(), x: item.transform[4] ?? 0, y: item.transform[5] ?? 0, width: item.width ?? 0, height: item.height ?? 0 }];
+    return [{ text: item.str.trim(), x: item.transform[4] ?? 0, y: item.transform[5] ?? 0, width: item.width ?? 0, height: item.height ?? 0, page }];
   });
 }
 
@@ -39,7 +39,7 @@ export async function processInvoicePdf(file: File, documentId: string, options:
       const page = await pdfDocument.getPage(pageNumber);
       const rotation = page.rotate ?? 0;
       const content = await page.getTextContent();
-      const tokens = tokensFromContent(content.items as unknown[]);
+      const tokens = tokensFromContent(content.items as unknown[], pageNumber);
       const selectableText = textFromTokens(tokens).trim();
       let text = selectableText;
       let sourceType: ExtractedPage["sourceType"] = "Texto";
