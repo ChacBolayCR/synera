@@ -9,6 +9,7 @@ import { ACTIVE_MODE_KEY, DEMO_STATE_KEY, REAL_STATE_KEY, modeStateKey, sanitize
 import { createInvoiceWorkbook } from "../lib/excel/export-invoices.ts";
 import { parseDocumentPages, segmentInvoicePages } from "../lib/invoices/segment.ts";
 import type { ExtractedPage } from "../lib/invoices/types.ts";
+import { clearDeliveryNoteBatch, clearInvoiceBatch, combinedDocumentBatches, replaceDeliveryNoteBatch, replaceInvoiceBatch } from "../lib/invoices/batch-state.ts";
 
 const header = (number: string) => `TIPO DOCUMENTO: 01 - FACTURA\nNo.: ${number}\nFECHA DE EMISION: 2022-07-27T17:22:59\nCLAVE NUMERICA: 50627072200310101653500100001010000053274110356535`;
 const page = (pageNumber: number, text: string): ExtractedPage => ({ pageNumber, text, sourceType: "Texto" });
@@ -192,4 +193,27 @@ test("separa las claves de Demo y Real y elimina texto OCR antes de persistir", 
   assert.equal(ACTIVE_MODE_KEY, "synera-active-mode-v1");
   const invoice = { ...demoInvoices[0], rawText: "texto extenso que no debe persistirse" };
   assert.equal(sanitizeInvoices([invoice])[0].rawText, undefined);
+});
+
+test("aislamiento A-B: cargar facturas y luego notas no cambia facturas", () => {
+  const invoice = reconciliationDocument("invoice-a", "invoice", "810954472"); const note = reconciliationDocument("note-a", "delivery_note", "810954472");
+  const withInvoices = replaceInvoiceBatch({ invoices: [], deliveryNotes: [] }, [invoice]);
+  const withNotes = replaceDeliveryNoteBatch(withInvoices, [note]);
+  assert.deepEqual(withNotes.invoices, [invoice]); assert.deepEqual(withNotes.deliveryNotes, [note]);
+});
+
+test("aislamiento C-D: resultados coexisten y permiten conciliación", () => {
+  const invoice = reconciliationDocument("invoice-b", "invoice", "810954472"); const note = reconciliationDocument("note-b", "delivery_note", "810954472");
+  const batches = replaceDeliveryNoteBatch(replaceInvoiceBatch({ invoices: [], deliveryNotes: [] }, [invoice]), [note]);
+  assert.deepEqual(batches.invoices, [invoice]); assert.equal(reconcileDeliveries(combinedDocumentBatches(batches))[0].status, "Coincide");
+});
+
+test("aislamiento E: limpiar notas no borra facturas", () => {
+  const invoice = reconciliationDocument("invoice-c", "invoice", "810954472"); const note = reconciliationDocument("note-c", "delivery_note", "810954472");
+  const cleared = clearDeliveryNoteBatch({ invoices: [invoice], deliveryNotes: [note] }); assert.deepEqual(cleared.invoices, [invoice]); assert.deepEqual(cleared.deliveryNotes, []);
+});
+
+test("aislamiento F: limpiar facturas no borra notas", () => {
+  const invoice = reconciliationDocument("invoice-d", "invoice", "810954472"); const note = reconciliationDocument("note-d", "delivery_note", "810954472");
+  const cleared = clearInvoiceBatch({ invoices: [invoice], deliveryNotes: [note] }); assert.deepEqual(cleared.invoices, []); assert.deepEqual(cleared.deliveryNotes, [note]);
 });
