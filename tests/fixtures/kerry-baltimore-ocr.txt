@@ -1,0 +1,50 @@
+KERRY
+Baltimore Spice Central America S.A.
+Identificación: 3-101-999999
+info@baltimorespice.example
+Clave numérica: 50627072200310199999900100001010000053274123456789
+No.: 00100001010000053274
+FECHA DE EMISION: 2022-07-27T17:22:59
+Moneda: USD
+FACTURADO A
+GEGA DE CANOAS SA
+Orden de compra: Case 04814210
+Código Principal
+Descripción / Clave CABYS
+Lote
+Peso Bruto
+Peso Neto
+Cantidad
+Unidad Medida
+Precio Unitario
+Precio Total
+20659503
+PACK CONDIMENTO SALCHICHON COMPLETO 25KG
+CABYS: 2399502009900
+Lote: 0006162626
+Peso Bruto: 127.000
+Peso Neto: 125.000
+Cantidad: 125.000
+Unidad Medida: kg
+Precio Unitario: 2,534.51
+Precio Total: 316,814.06
+20659503
+PACK CONDIMENTO SALCHICHON COMPLETO 25KG
+CABYS: 2399502009900
+Lote: 0006205532
+Peso Bruto: 127.000
+Peso Neto: 125.000
+Cantidad: 125.000
+Unidad Medida: kg
+Precio Unitario: 2,534.51
+Precio Total: 316,814.06
+20659840
+SOYA TEXTURIZADA CLARA 20KG
+CABYS: 2399502009900
+Lote: 0006188047
+Peso Bruto: 204.000
+Peso Neto: 200.000
+Cantidad: 200.000
+Unidad Medida: kg
+Precio Unitario: 1,723.47
+Precio Total: 344,693.70
