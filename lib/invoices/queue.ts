@@ -1,7 +1,7 @@
 import { processInvoicePdf } from "../ocr/process-pdf";
 import type { UploadedDocument } from "./types";
 
-export async function processInvoiceQueue(files: File[], documentIds: string[], concurrency: number, signal: AbortSignal, update: (id: string, patch: Partial<UploadedDocument>) => void) {
+export async function processInvoiceQueue(files: File[], documentIds: string[], concurrency: number, signal: AbortSignal, update: (id: string, patch: Partial<UploadedDocument>) => void, expectedDocumentType?: "invoice" | "delivery_note") {
   let nextIndex = 0;
   async function worker() {
     while (nextIndex < files.length && !signal.aborted) {
@@ -9,7 +9,7 @@ export async function processInvoiceQueue(files: File[], documentIds: string[], 
       const file = files[index]; const id = documentIds[index];
       update(id, { status: "Procesando", progress: 2, progressLabel: "Abriendo PDF" });
       try {
-        const document = await processInvoicePdf(file, id, { signal, onProgress: (progress, label, detectedInvoices, currentPage, pageCount, ocrProgress) => update(id, { progress, progressLabel: label, detectedInvoices, currentPage, pageCount, ocrProgress }) });
+        const document = await processInvoicePdf(file, id, { signal, expectedDocumentType, onProgress: (progress, label, detectedInvoices, currentPage, pageCount, ocrProgress) => update(id, { progress, progressLabel: label, detectedInvoices, currentPage, pageCount, ocrProgress }), onPageDebug: (entry) => console.info("[SYNERA Invoice Intelligence]", entry) });
         update(id, document);
       } catch (error) {
         if (signal.aborted || (error instanceof DOMException && error.name === "AbortError")) update(id, { status: "Cancelado", progressLabel: "Procesamiento cancelado" });

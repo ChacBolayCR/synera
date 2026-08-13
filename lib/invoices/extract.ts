@@ -9,6 +9,7 @@ const plausibleQuantity = (value: number | null) => value != null && value > 0 &
 const plausibleMoney = (value: number | null) => value != null && value >= 0 && value <= 1_000_000_000_000;
 const closeEnough = (quantity: number, price: number, total: number) => Math.abs(quantity * price - total) <= Math.max(1, total * 0.05);
 const numericId = (value: string | null, min = 5, max = 60) => { const clean = value?.replace(/\D/g, "") ?? ""; return clean.length >= min && clean.length <= max ? clean : null; };
+const rightOfLabel = (tokens: PdfTextToken[], label: RegExp) => { const anchor = tokens.find((token) => label.test(token.text)); if (!anchor) return null; return tokens.filter((token) => token !== anchor && token.x > anchor.x + anchor.width - 2 && Math.abs(token.y - anchor.y) <= Math.max(4, anchor.height * .7)).sort((a, b) => a.x - b.x)[0]?.text ?? null; };
 
 function tableRegion(text: string) {
   const lines = text.split(/\r?\n/).map(normalizeSpaces).filter(Boolean);
@@ -112,25 +113,26 @@ function extractSupplier(text: string) {
   return company?.match(/^(.+?\b(?:S\.?A\.?|S\.?R\.?L\.?|LTDA\.?|INC\.?|CORP\.?))/i)?.[1] ?? company;
 }
 
-export function extractInvoice(text: string, metadata: Pick<Invoice, "id" | "fileName" | "fileSize" | "sourceType" | "pageCount">, tokens: PdfTextToken[] = []): Invoice {
+export function extractInvoice(text: string, metadata: Pick<Invoice, "id" | "fileName" | "fileSize" | "sourceType" | "pageCount">, tokens: PdfTextToken[] = [], expectedDocumentType?: "invoice" | "delivery_note"): Invoice {
   const documentType: Invoice["documentType"] = /\bnota\s+de\s+entrega\b/i.test(text) ? "delivery_note" : /\bfactura\b|tipo\s+documento\s*:\s*01/i.test(text) ? "invoice" : "unknown";
+  const effectiveDocumentType: Invoice["documentType"] = expectedDocumentType ?? documentType;
   const invoiceRaw = find(text, [/(?:n[uú]mero\s+de\s+factura|factura|n[uú]mero|no\.?|no|nro\.?)\s*[:#-]\s*([0-9A-Z-]{3,40})/i]);
-  const dateRaw = find(text, [/(?:fecha\s+de\s+emisi[oó]n|fecha)\s*[:#-]?\s*(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)/i, /(?:fecha)\s*[:#-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i]);
+  const dateRaw = find(text, [/(?:fecha\s+de\s+emisi[oó]n|fecha)\s*[:#-]?\s*(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)/i, /(?:fecha)\s*[:#-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i]) ?? rightOfLabel(tokens, /fecha\s+de\s+emisi[oó]n|fecha/i);
   const supplierRaw = extractSupplier(text);
   const supplierIdRaw = numericId(find(text.split(/FACTURADO\s+A/i)[0], [/(?:tax id|c[eé]dula\s+jur[ií]dica|identificaci[oó]n)\s*[:#-]?\s*([\d-]{5,30})/i]));
   const subtotalRaw = find(text, [/(?:^|\n)\s*subtotal\s*[:₡$]?\s*([\d.,]+)/im]);
   const taxRaw = find(text, [/(?:^|\n)\s*(?:impuesto|iva|i\.?v\.?a\.?|tax)\s*[:₡$]?\s*([\d.,]+)/im]);
   const totalRaw = find(text, [/(?:^|\n)\s*total(?:\s+a\s+pagar)?\s*[:₡$]?\s*([\d.,]+)/im]);
-  const orderRaw = find(text, [/(?:^|\n)\s*orden\s+de\s+compra\s*[:#-]\s*([^\n]{2,50})/im]);
+  const orderRaw = find(text, [/(?:^|\n)\s*orden\s+de\s+compra\s*[:#-]\s*([^\n]{2,50})/im]) ?? rightOfLabel(tokens, /orden\s+de\s+compra/i);
   const termsRaw = find(text, [/(?:condiciones? de pago|forma de pago|payment terms)\s*[:#-]?\s*([^\n]{3,50})/i]);
   const dateValue = normalizeDate(dateRaw); const subtotal = parseNumber(subtotalRaw); const tax = parseNumber(taxRaw); const total = parseNumber(totalRaw);
   const currencyRaw = /\bUSD\b|US\$/.test(text) ? "USD" : /\bEUR\b|€/.test(text) ? "EUR" : /\bCRC\b|₡|colones?/i.test(text) ? "CRC" : null;
   const exact = (regex: RegExp) => find(text, [new RegExp(`(?:^|\\n)\\s*${regex.source}\\s*[:#-]\\s*([^\\n]+)`, "im")]);
-  const deliveryNumberRaw = find(text, [documentType === "delivery_note" ? /(?:^|\n)\s*(?:n[uú]mero\s+de\s+entrega|entrega)\s*[:#-]\s*([\d\s.-]+)/im : /(?:^|\n)\s*entrega\s*[:#-]\s*([\d\s.-]+)/im]);
+  const deliveryNumberRaw = find(text, [effectiveDocumentType === "delivery_note" ? /(?:^|\n)\s*(?:n[uú]mero\s+de\s+entrega|entrega)\s*[:#-]\s*([\d\s.-]+)/im : /(?:^|\n)\s*entrega\s*[:#-]\s*([\d\s.-]+)/im]) ?? rightOfLabel(tokens, effectiveDocumentType === "delivery_note" ? /n[uú]mero\s+de\s+entrega/i : /^entrega\s*:?$/i);
   const clientBlock = text.split(/FACTURADO\s+A/i)[1]?.split(/ENTREGADO\s+EN|CONDICIONES|DOC\.?\s*INTERNO|C[oó]digo\s+Principal/i)[0] ?? "";
   const clientRaw = clientBlock.split(/\r?\n/).map(normalizeSpaces).find((line) => line.length > 3 && !/c[eé]dula|tel[eé]fono|email|@/i.test(line)) ?? null;
   const positionalItems = extractPositionalItems(tokens);
-  const items = documentType === "delivery_note" ? [] : positionalItems.length ? positionalItems : extractItems(text); const issues: ReviewIssue[] = [];
+  const items = effectiveDocumentType === "delivery_note" ? [] : positionalItems.length ? positionalItems : extractItems(text); const issues: ReviewIssue[] = [];
   if (documentType === "delivery_note") issues.push({ id: crypto.randomUUID(), field: "Tipo documento", value: "Nota de Entrega", problem: "El documento es una nota de entrega y no se procesó como factura.", confidence: "Alta", resolved: false });
   if (!invoiceRaw && !dateValue && !supplierRaw) issues.push({ id: crypto.randomUUID(), field: "Encabezado", value: "Vacío", problem: "No se identificó factura, fecha ni proveedor", confidence: "Baja", resolved: false });
   if (TABLE_HEADER.test(text) && !items.length) issues.push({ id: crypto.randomUUID(), field: "Productos", value: "Vacío", problem: "Se detectó una tabla, pero ninguna línea cumplió las validaciones de producto", confidence: "Baja", resolved: false });
@@ -138,7 +140,7 @@ export function extractInvoice(text: string, metadata: Pick<Invoice, "id" | "fil
   if (subtotal != null && tax != null && total != null && Math.abs(subtotal + tax - total) > Math.max(2, total * .02)) issues.push({ id: crypto.randomUUID(), field: "Total", value: String(total), problem: "Subtotal e impuesto no coinciden con el total", confidence: "Baja", resolved: false });
   for (const entry of items) if (!plausibleQuantity(entry.quantity.normalizedValue) || entry.lineTotal.confidence === "Baja") issues.push({ id: crypto.randomUUID(), field: "Producto", value: entry.description.originalValue ?? "", problem: "Cantidad o total de línea inconsistente", confidence: "Baja", resolved: false });
   const levels = [invoiceRaw, dateValue, supplierRaw, total].filter(Boolean).length; const overall: ConfidenceLevel = issues.length ? "Baja" : levels >= 3 ? "Alta" : "Media";
-  const result: Invoice = { ...metadata, documentType, status: issues.length ? "Requiere revisión" : "Completado", progress: 100, progressLabel: "Análisis completado",
+  const result: Invoice = { ...metadata, documentType: effectiveDocumentType, status: issues.length ? "Requiere revisión" : "Completado", progress: 100, progressLabel: "Análisis completado",
     invoiceNumber: field(invoiceRaw, invoiceRaw, confidence(invoiceRaw)), date: field(dateRaw, dateValue, confidence(dateValue)), supplier: field(supplierRaw, supplierRaw, confidence(supplierRaw)), supplierId: field(supplierIdRaw, supplierIdRaw, confidence(supplierIdRaw)),
     currency: field(currencyRaw, currencyRaw, confidence(currencyRaw)), subtotal: field(subtotalRaw, subtotal, confidence(subtotal)), tax: field(taxRaw, tax, confidence(tax)), total: field(totalRaw, total, confidence(total)), purchaseOrder: field(orderRaw, orderRaw, confidence(orderRaw)), paymentTerms: field(termsRaw, termsRaw, confidence(termsRaw)), tradeName: field(/^\s*KERRY\s*$/im.test(text) ? "KERRY" : null, /^\s*KERRY\s*$/im.test(text) ? "KERRY" : null, "Alta"), documentTypeLabel: field(exact(/tipo\s+documento/), exact(/tipo\s+documento/), "Media"), numericKey: field(numericId(exact(/clave\s+num[eé]rica/), 30, 60), numericId(exact(/clave\s+num[eé]rica/), 30, 60), "Alta"), client: field(clientRaw, clientRaw, confidence(clientRaw)), clientId: field(numericId(find(clientBlock, [/(?:c[eé]dula\s+jur[ií]dica|identificaci[oó]n)\s*[:#-]?\s*([\d-]+)/i])), numericId(find(clientBlock, [/(?:c[eé]dula\s+jur[ií]dica|identificaci[oó]n)\s*[:#-]?\s*([\d-]+)/i])), "Media"), deliveryAddress: field(exact(/entregado\s+en/), exact(/entregado\s+en/), "Media"), salesConditions: field(exact(/condiciones\s+de\s+venta/), exact(/condiciones\s+de\s+venta/), "Media"), paymentMethod: field(exact(/medio\s+de\s+pago/), exact(/medio\s+de\s+pago/), "Media"), exchangeRate: field(exact(/tipo\s+de\s+cambio/), parseNumber(exact(/tipo\s+de\s+cambio/)), "Media"), incoterm: field(exact(/incoterm/), exact(/incoterm/), "Media"), internalDocument: field(exact(/doc\.?\s*interno/), exact(/doc\.?\s*interno/), "Media"), orderNumber: field(exact(/pedido/), exact(/pedido/), "Media"), deliveryNumber: field(exact(/entrega/), exact(/entrega/), "Media"), totalGrossWeight: field(exact(/total\s+peso\s+bruto/), parseMeasurement(exact(/total\s+peso\s+bruto/)), "Media"), totalNetWeight: field(exact(/total\s+peso\s+neto/), parseMeasurement(exact(/total\s+peso\s+neto/)), "Media"), taxableTotal: field(exact(/total\s+gravado/), parseNumber(exact(/total\s+gravado/)), "Media"), exemptTotal: field(exact(/total\s+exento/), parseNumber(exact(/total\s+exento/)), "Media"), exoneratedTotal: field(exact(/total\s+exonerado/), parseNumber(exact(/total\s+exonerado/)), "Media"), emissionTimestamp: dateRaw ?? undefined, items, issues, confidence: overall, rawText: text };
   result.deliveryNumber = field(deliveryNumberRaw, numericId(deliveryNumberRaw), confidence(deliveryNumberRaw));

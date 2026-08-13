@@ -70,13 +70,13 @@ export function segmentInvoicePages(pages: ExtractedPage[]): InvoiceSegment[] {
   return segments;
 }
 
-export function parseDocumentPages(pages: ExtractedPage[], metadata: { documentId: string; fileName: string; fileSize: number }): Invoice[] {
+export function parseDocumentPages(pages: ExtractedPage[], metadata: { documentId: string; fileName: string; fileSize: number; expectedDocumentType?: "invoice" | "delivery_note" }): Invoice[] {
   return segmentInvoicePages(pages).map((segment) => {
     const sourceTypes = new Set(segment.pages.map((page) => page.sourceType));
     const sourceType: Invoice["sourceType"] = sourceTypes.has("OCR") ? "OCR" : "Texto";
     const invoice = extractInvoice(segment.pages.map((page) => page.text).join("\n"), {
       id: crypto.randomUUID(), fileName: metadata.fileName, fileSize: metadata.fileSize, sourceType, pageCount: segment.pages.length,
-    }, segment.pages.flatMap((page) => page.tokens ?? []));
+    }, segment.pages.flatMap((page) => page.tokens ?? []), metadata.expectedDocumentType);
     invoice.sourceDocumentId = metadata.documentId;
     invoice.sourcePages = segment.pageNumbers;
     invoice.sourcePageStart = segment.pageNumbers[0];

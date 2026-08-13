@@ -53,6 +53,17 @@ test("regresión Kerry extrae encabezado y exactamente tres productos válidos",
   assert.ok(invoice.items.every((item) => item.code.normalizedValue !== "2399502009900"));
 });
 
+test("Kerry extrae referencias y fecha desde tokens alineados a la derecha", () => {
+  const tokens = [
+    { text: "FECHA DE EMISION:", x: 10, y: 500, width: 100, height: 10 }, { text: "2022-07-27T17:22:59", x: 130, y: 500, width: 120, height: 10 },
+    { text: "Entrega:", x: 10, y: 300, width: 50, height: 10 }, { text: "810954472", x: 80, y: 300, width: 60, height: 10 },
+    { text: "Pedido:", x: 160, y: 300, width: 45, height: 10 }, { text: "19458409", x: 220, y: 300, width: 55, height: 10 },
+    { text: "Orden de Compra:", x: 300, y: 300, width: 100, height: 10 }, { text: "Case 04814210", x: 420, y: 300, width: 90, height: 10 },
+  ];
+  const invoice = extractInvoice("TIPO DOCUMENTO: 01 - FACTURA\nNo.: 00100001010000053274\nBaltimore Spice Central America S.A.", { id: "layout", fileName: "factura.pdf", fileSize: 1, sourceType: "Texto", pageCount: 1 }, tokens);
+  assert.equal(invoice.date.normalizedValue, "2022-07-27"); assert.equal(invoice.deliveryNumber?.normalizedValue, "810954472"); assert.equal(invoice.purchaseOrder.normalizedValue, "Case 04814210");
+});
+
 test("reconstruye una descripción multilínea Kerry", () => {
   const text = `${header("001")}\nBaltimore Spice Central America S.A.\nTAX ID: 3101016535\nCódigo Principal\nDescripción / Clave CABYS\nLote\nCantidad\nUnidad Medida\nPrecio Unitario\nPrecio Total\n20659503\nPACK CONDIMENTO SALCHICHON\nCOMPLETO 25KG\nCódigo CABYS: 2399502009900\nLote: 0006162626\nCantidad: 125.000\nUnidad Medida: kg\nPrecio Unitario: 2,534.51\nPrecio Total: 316,814.06`;
   const invoice = extractInvoice(text, { id: "multiline", fileName: "kerry.pdf", fileSize: 1, sourceType: "Texto", pageCount: 1 });
@@ -95,6 +106,11 @@ test("normalización de Entrega conserva ceros iniciales", () => {
 test("Nota de Entrega multipágina conserva un solo segmento y rango", () => {
   const notes = parseDocumentPages([page(111, "Página 1 de 2\nNOTA DE ENTREGA\nNúmero de Entrega: 810954472"), page(112, "Página 2 de 2\nDetalle")], { documentId: "notes", fileName: "notas.pdf", fileSize: 1 });
   assert.equal(notes.length, 1); assert.equal(notes[0].documentType, "delivery_note"); assert.equal(notes[0].sourcePageStart, 111); assert.equal(notes[0].sourcePageEnd, 112);
+});
+
+test("Nota rotada 90 grados se clasifica usando la intención del lote", () => {
+  const notes = parseDocumentPages([page(1, "Numero de Entrega: 811103825")], { documentId: "rotated", fileName: "notas-rotadas.pdf", fileSize: 1, expectedDocumentType: "delivery_note" });
+  assert.equal(notes.length, 1); assert.equal(notes[0].documentType, "delivery_note"); assert.equal(notes[0].deliveryNumber?.normalizedValue, "811103825");
 });
 
 test("Excel incluye conciliación y Entrega como texto", async () => {

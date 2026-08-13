@@ -54,7 +54,7 @@ export function InvoiceIntelligence({ notify, mode, initialInvoices = [], onInvo
     const entry = fileEntries.find((candidate) => candidate.documentId === invoice.sourceDocumentId); if (!entry) { notify("El archivo original ya no está disponible; selecciónalo nuevamente"); return; }
     const controller = new AbortController(); await processInvoiceQueue([entry.file], [entry.documentId], 1, controller.signal, updateDocument);
   };
-  const processNotes = async () => { if (!noteEntries.length || running) return; setRunning(true); const controller = new AbortController(); abortRef.current = controller; await processInvoiceQueue(noteEntries.map((entry) => entry.file), noteEntries.map((entry) => entry.documentId), concurrency, controller.signal, updateNoteDocument); setRunning(false); notify("Notas de entrega analizadas"); };
+  const processNotes = async () => { if (!noteEntries.length || running) return; setRunning(true); const controller = new AbortController(); abortRef.current = controller; await processInvoiceQueue(noteEntries.map((entry) => entry.file), noteEntries.map((entry) => entry.documentId), concurrency, controller.signal, updateNoteDocument, "delivery_note"); setRunning(false); notify("Notas de entrega analizadas"); };
   const suppliers = useMemo(() => [...new Set(invoices.map((invoice) => invoice.supplier.normalizedValue).filter(Boolean) as string[])], [invoices]);
   const visible = invoices.filter((invoice) => (supplier === "Todos los proveedores" || invoice.supplier.normalizedValue === supplier) && (view === "Resultados" || invoice.status === "Requiere revisión"));
   const completed = visible.filter((invoice) => invoice.status === "Completado").length;

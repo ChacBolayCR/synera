@@ -34,5 +34,6 @@ export type UploadedDocument = {
 export type PdfTextToken = { text: string; x: number; y: number; width: number; height: number };
 export type ExtractedPage = { pageNumber: number; text: string; sourceType: "Texto" | "OCR"; tokens?: PdfTextToken[] };
 export type ProcessingOptions = { signal?: AbortSignal; onProgress?: (progress: number, label: string, detectedInvoices?: number, pageNumber?: number, pageCount?: number, ocrProgress?: number | null) => void };
+export type DocumentProcessingOptions = ProcessingOptions & { expectedDocumentType?: "invoice" | "delivery_note"; onPageDebug?: (entry: { page: number; preview: string; documentType: Invoice["documentType"]; deliveryNumber: string | null }) => void };
 export type ReconciliationStatus = "Coincide" | "Factura sin nota" | "Nota sin factura" | "Duplicado factura" | "Duplicado nota" | "Revisión requerida";
 export type ReconciliationRecord = { id: string; deliveryNumber: string; invoices: Invoice[]; deliveryNotes: Invoice[]; status: ReconciliationStatus; observation: string };

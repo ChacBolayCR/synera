@@ -1,5 +1,5 @@
 import { parseDocumentPages, segmentInvoicePages } from "../invoices/segment";
-import type { ExtractedPage, PdfTextToken, ProcessingOptions, UploadedDocument } from "../invoices/types";
+import type { DocumentProcessingOptions, ExtractedPage, PdfTextToken, UploadedDocument } from "../invoices/types";
 
 const PDF_TEXT_THRESHOLD = 30;
 
@@ -21,7 +21,7 @@ function textFromTokens(tokens: PdfTextToken[]) {
   return rows.map((row) => row.sort((a, b) => a.x - b.x).map((token) => token.text).join(" ")).join("\n");
 }
 
-export async function processInvoicePdf(file: File, documentId: string, options: ProcessingOptions = {}): Promise<UploadedDocument> {
+export async function processInvoicePdf(file: File, documentId: string, options: DocumentProcessingOptions = {}): Promise<UploadedDocument> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   const buffer = await file.arrayBuffer();
@@ -37,6 +37,7 @@ export async function processInvoicePdf(file: File, documentId: string, options:
       currentPageNumber = pageNumber;
       options.onProgress?.(Math.round(((pageNumber - 1) / pdfDocument.numPages) * 94), `Procesando: página ${pageNumber}`, segmentInvoicePages(pages).length, pageNumber, pdfDocument.numPages, null);
       const page = await pdfDocument.getPage(pageNumber);
+      const rotation = page.rotate ?? 0;
       const content = await page.getTextContent();
       const tokens = tokensFromContent(content.items as unknown[]);
       const selectableText = textFromTokens(tokens).trim();
@@ -55,7 +56,7 @@ export async function processInvoicePdf(file: File, documentId: string, options:
             }
           }});
         }
-        const viewport = page.getViewport({ scale: 1.7 });
+        const viewport = page.getViewport({ scale: 1.7, rotation });
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width; canvas.height = viewport.height;
         const context = canvas.getContext("2d");
@@ -67,12 +68,14 @@ export async function processInvoicePdf(file: File, documentId: string, options:
       }
 
       pages.push({ pageNumber, text, sourceType, tokens: sourceType === "Texto" ? tokens : undefined });
+      const debugInvoice = parseDocumentPages([{ pageNumber, text, sourceType, tokens: sourceType === "Texto" ? tokens : undefined }], { documentId, fileName: file.name, fileSize: file.size, expectedDocumentType: options.expectedDocumentType })[0];
+      options.onPageDebug?.({ page: pageNumber, preview: text.replace(/\s+/g, " ").slice(0, 120), documentType: debugInvoice?.documentType ?? "unknown", deliveryNumber: debugInvoice?.deliveryNumber?.normalizedValue ?? null });
       const detected = segmentInvoicePages(pages).length;
       options.onProgress?.(Math.round((pageNumber / pdfDocument.numPages) * 94), `Página ${pageNumber} completada`, detected, pageNumber, pdfDocument.numPages, sourceType === "OCR" ? 100 : null);
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     options.onProgress?.(97, "Organizando facturas", segmentInvoicePages(pages).length, pdfDocument.numPages, pdfDocument.numPages, null);
-    const invoices = parseDocumentPages(pages, { documentId, fileName: file.name, fileSize: file.size });
+    const invoices = parseDocumentPages(pages, { documentId, fileName: file.name, fileSize: file.size, expectedDocumentType: options.expectedDocumentType });
     return { id: documentId, fileName: file.name, fileSize: file.size, pageCount: pdfDocument.numPages, invoices, status: invoices.some((invoice) => invoice.status === "Requiere revisión") ? "Requiere revisión" : "Completado", progress: 100, progressLabel: "Análisis completado", detectedInvoices: invoices.length };
   } finally {
     if (worker) await worker.terminate();
