@@ -9,7 +9,7 @@ export async function processInvoiceQueue(files: File[], documentIds: string[], 
       const file = files[index]; const id = documentIds[index];
       update(id, { status: "Procesando", progress: 2, progressLabel: "Abriendo PDF" });
       try {
-        const document = await processInvoicePdf(file, id, { signal, onProgress: (progress, label, detectedInvoices, _pageNumber, pageCount) => update(id, { progress, progressLabel: label, detectedInvoices, pageCount }) });
+        const document = await processInvoicePdf(file, id, { signal, onProgress: (progress, label, detectedInvoices, currentPage, pageCount, ocrProgress) => update(id, { progress, progressLabel: label, detectedInvoices, currentPage, pageCount, ocrProgress }) });
         update(id, document);
       } catch (error) {
         if (signal.aborted || (error instanceof DOMException && error.name === "AbortError")) update(id, { status: "Cancelado", progressLabel: "Procesamiento cancelado" });

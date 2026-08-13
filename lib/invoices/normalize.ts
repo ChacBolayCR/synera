@@ -2,6 +2,7 @@ import type { ExtractionField } from "./types";
 
 export const normalizeSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
 export const normalizeCode = (value: string) => normalizeSpaces(value).toUpperCase().replace(/\s*[-–—]\s*/g, "-");
+export const normalizeDeliveryNumber = (value?: string | number | null) => value == null ? "" : String(value).replace(/[\s\u200B-\u200D\uFEFF._-]+/g, "").replace(/\D/g, "");
 export function normalizeDescription(value: string) { const clean = normalizeSpaces(value); return clean ? clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase() : clean; }
 export function parseNumber(value?: string | null): number | null {
   if (!value) return null; let clean = value.replace(/[^\d,.-]/g, "").trim(); if (!clean) return null;

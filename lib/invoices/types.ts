@@ -16,11 +16,23 @@ export type Invoice = {
   date: ExtractionField<string>; supplier: ExtractionField<string>; supplierId: ExtractionField<string>;
   currency: ExtractionField<string>; subtotal: ExtractionField<number>; tax: ExtractionField<number>;
   total: ExtractionField<number>; purchaseOrder: ExtractionField<string>; paymentTerms: ExtractionField<string>;
+  documentType?: "invoice" | "delivery_note" | "unknown"; tradeName?: ExtractionField<string>; documentTypeLabel?: ExtractionField<string>;
+  numericKey?: ExtractionField<string>; client?: ExtractionField<string>; clientId?: ExtractionField<string>;
+  deliveryAddress?: ExtractionField<string>; salesConditions?: ExtractionField<string>; paymentMethod?: ExtractionField<string>;
+  exchangeRate?: ExtractionField<number>; incoterm?: ExtractionField<string>; internalDocument?: ExtractionField<string>;
+  orderNumber?: ExtractionField<string>; deliveryNumber?: ExtractionField<string>; totalGrossWeight?: ExtractionField<number>;
+  totalNetWeight?: ExtractionField<number>; taxableTotal?: ExtractionField<number>; exemptTotal?: ExtractionField<number>;
+  exoneratedTotal?: ExtractionField<number>; emissionTimestamp?: string;
   items: InvoiceItem[]; issues: ReviewIssue[]; confidence: ConfidenceLevel; rawText?: string; error?: string;
 };
 export type UploadedDocument = {
   id: string; fileName: string; fileSize: number; pageCount: number; invoices: Invoice[];
-  status: InvoiceStatus; progress: number; progressLabel: string; detectedInvoices: number; error?: string;
+  status: InvoiceStatus; progress: number; progressLabel: string; detectedInvoices: number;
+  currentPage?: number; ocrProgress?: number | null; error?: string;
+  batchType?: "invoice" | "delivery_note";
 };
-export type ExtractedPage = { pageNumber: number; text: string; sourceType: "Texto" | "OCR" };
-export type ProcessingOptions = { signal?: AbortSignal; onProgress?: (progress: number, label: string, detectedInvoices?: number, pageNumber?: number, pageCount?: number) => void };
+export type PdfTextToken = { text: string; x: number; y: number; width: number; height: number };
+export type ExtractedPage = { pageNumber: number; text: string; sourceType: "Texto" | "OCR"; tokens?: PdfTextToken[] };
+export type ProcessingOptions = { signal?: AbortSignal; onProgress?: (progress: number, label: string, detectedInvoices?: number, pageNumber?: number, pageCount?: number, ocrProgress?: number | null) => void };
+export type ReconciliationStatus = "Coincide" | "Factura sin nota" | "Nota sin factura" | "Duplicado factura" | "Duplicado nota" | "Revisión requerida";
+export type ReconciliationRecord = { id: string; deliveryNumber: string; invoices: Invoice[]; deliveryNotes: Invoice[]; status: ReconciliationStatus; observation: string };

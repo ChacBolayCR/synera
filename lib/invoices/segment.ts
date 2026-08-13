@@ -16,6 +16,8 @@ const HEADER_SIGNALS = [
   /clave\s+num[eé]rica/i,
   /facturado\s+a/i,
   /entregado\s+en/i,
+  /nota\s+de\s+entrega/i,
+  /n[uú]mero\s+de\s+entrega/i,
 ];
 
 const pageMarker = (text: string) => {
@@ -74,7 +76,7 @@ export function parseDocumentPages(pages: ExtractedPage[], metadata: { documentI
     const sourceType: Invoice["sourceType"] = sourceTypes.has("OCR") ? "OCR" : "Texto";
     const invoice = extractInvoice(segment.pages.map((page) => page.text).join("\n"), {
       id: crypto.randomUUID(), fileName: metadata.fileName, fileSize: metadata.fileSize, sourceType, pageCount: segment.pages.length,
-    });
+    }, segment.pages.flatMap((page) => page.tokens ?? []));
     invoice.sourceDocumentId = metadata.documentId;
     invoice.sourcePages = segment.pageNumbers;
     invoice.sourcePageStart = segment.pageNumbers[0];

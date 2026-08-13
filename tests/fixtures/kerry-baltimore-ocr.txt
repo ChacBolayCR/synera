@@ -1,6 +1,6 @@
 KERRY
 Baltimore Spice Central America S.A.
-Identificación: 3-101-999999
+TAX ID: 3101016535
 info@baltimorespice.example
 Clave numérica: 50627072200310199999900100001010000053274123456789
 No.: 00100001010000053274
@@ -8,6 +8,9 @@ FECHA DE EMISION: 2022-07-27T17:22:59
 Moneda: USD
 FACTURADO A
 GEGA DE CANOAS SA
+Doc. Interno: DOC-4491
+Pedido: 19458409
+Entrega: 810931191
 Orden de compra: Case 04814210
 Código Principal
 Descripción / Clave CABYS
