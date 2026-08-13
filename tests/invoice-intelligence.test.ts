@@ -3,6 +3,7 @@ import test from "node:test";
 import { demoInvoices } from "../lib/invoices/demo.ts";
 import { extractInvoice } from "../lib/invoices/extract.ts";
 import { normalizeCode, normalizeDate, parseNumber } from "../lib/invoices/normalize.ts";
+import { ACTIVE_MODE_KEY, DEMO_STATE_KEY, REAL_STATE_KEY, modeStateKey, sanitizeInvoices } from "../lib/state/mode-storage.ts";
 
 test("normaliza fechas, montos y códigos", () => {
   assert.equal(normalizeDate("12/08/2026"), "2026-08-12");
@@ -31,4 +32,13 @@ test("datos demo cubren texto, OCR, múltiples páginas, productos sin código y
   assert.ok(demoInvoices.some((invoice) => invoice.pageCount > 1));
   assert.ok(demoInvoices.some((invoice) => invoice.items.some((item) => !item.code.normalizedValue)));
   assert.ok(demoInvoices.some((invoice) => invoice.status === "Requiere revisión"));
+});
+
+test("separa las claves de Demo y Real y elimina texto OCR antes de persistir", () => {
+  assert.equal(modeStateKey("demo"), DEMO_STATE_KEY);
+  assert.equal(modeStateKey("real"), REAL_STATE_KEY);
+  assert.notEqual(DEMO_STATE_KEY, REAL_STATE_KEY);
+  assert.equal(ACTIVE_MODE_KEY, "synera-active-mode-v1");
+  const invoice = { ...demoInvoices[0], rawText: "texto extenso que no debe persistirse" };
+  assert.equal(sanitizeInvoices([invoice])[0].rawText, undefined);
 });

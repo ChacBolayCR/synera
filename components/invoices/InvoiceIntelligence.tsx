@@ -13,8 +13,8 @@ const size = (bytes: number) => bytes < 1_000_000 ? (bytes / 1000).toFixed(0) + 
 const tone = (value: string) => /Error|Baja/.test(value) ? "red" : /Requiere|Media|Cancelado/.test(value) ? "amber" : "green";
 const cloneDemo = () => demoInvoices.map((invoice) => ({ ...invoice, id: crypto.randomUUID(), items: invoice.items.map((item) => ({ ...item, id: crypto.randomUUID() })), issues: invoice.issues.map((issue) => ({ ...issue, id: crypto.randomUUID() })) }));
 
-export function InvoiceIntelligence({ notify }: { notify: (message: string) => void }) {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+export function InvoiceIntelligence({ notify, mode, initialInvoices = [], onInvoicesChange }: { notify: (message: string) => void; mode: "demo" | "real"; initialInvoices?: Invoice[]; onInvoicesChange?: (invoices: Invoice[]) => void }) {
+  const [invoices, setInvoicesState] = useState<Invoice[]>(initialInvoices);
   const [files, setFiles] = useState<File[]>([]);
   const [concurrency, setConcurrency] = useState(3);
   const [running, setRunning] = useState(false);
@@ -22,6 +22,8 @@ export function InvoiceIntelligence({ notify }: { notify: (message: string) => v
   const [supplier, setSupplier] = useState("Todos los proveedores");
   const [selected, setSelected] = useState<Invoice | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const invoicesRef = useRef<Invoice[]>(initialInvoices);
+  const setInvoices = (value: Invoice[] | ((current: Invoice[]) => Invoice[])) => { const next = typeof value === "function" ? value(invoicesRef.current) : value; invoicesRef.current = next; setInvoicesState(next); onInvoicesChange?.(next); };
 
   const update = (id: string, patch: Partial<Invoice>) => setInvoices((current) => current.map((invoice) => invoice.id === id ? { ...invoice, ...patch } : invoice));
   const chooseFiles = (list: FileList | null) => {
@@ -46,7 +48,7 @@ export function InvoiceIntelligence({ notify }: { notify: (message: string) => v
   const units = visible.flatMap((invoice) => invoice.items).reduce((sum, item) => sum + (item.quantity.normalizedValue ?? 0), 0);
 
   return <div className="invoice-intelligence">
-    <div className="invoice-hero"><div><span className="eyebrow">INVOICE INTELLIGENCE</span><h2>Analizar facturas</h2><p>Convierte facturas PDF en datos revisables y un Excel consolidado. Los documentos permanecen en este dispositivo.</p></div><div className="button-row"><button className="secondary" onClick={() => { setInvoices(cloneDemo()); setFiles([]); notify("Facturas demo cargadas"); }}><Play size={16}/> Cargar modo demo</button><label className="primary file-button"><Upload size={16}/> Seleccionar PDFs<input type="file" accept="application/pdf,.pdf" multiple onChange={(event) => chooseFiles(event.target.files)}/></label></div></div>
+    <div className="invoice-hero"><div><span className="eyebrow">INVOICE INTELLIGENCE · {mode === "demo" ? "DEMO" : "DATOS REALES"}</span><h2>Analizar facturas</h2><p>Convierte facturas PDF en datos revisables y un Excel consolidado. Los documentos permanecen en este dispositivo.</p></div><div className="button-row"><button className="secondary" onClick={() => { setInvoices(cloneDemo()); setFiles([]); notify("Ejemplo cargado en el entorno actual"); }}><Play size={16}/> Cargar ejemplo</button><label className="primary file-button"><Upload size={16}/> Seleccionar PDFs<input type="file" accept="application/pdf,.pdf" multiple onChange={(event) => chooseFiles(event.target.files)}/></label></div></div>
     <div className="privacy-note"><Check size={16}/><span><b>Procesamiento local</b> Los PDFs no se suben a servidores ni se guardan en localStorage.</span></div>
     <div className="queue-toolbar"><div><b>{invoices.length} archivos seleccionados</b><span>{completed} completados · {reviews} requieren revisión · {errors} con error · {invoices.filter((i) => i.status === "Procesando").length} procesando</span></div><label>Procesar simultáneamente <select value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))}>{[1,2,3,4,5].map((value) => <option key={value}>{value}</option>)}</select></label>{running ? <button className="secondary danger" onClick={() => abortRef.current?.abort()}><Ban size={15}/> Cancelar</button> : <button className="primary" disabled={!files.length} onClick={start}><Play size={15}/> Iniciar análisis</button>}</div>
     {invoices.length === 0 ? <div className="invoice-empty"><FileText/><h3>Selecciona hasta 200 facturas PDF</h3><p>SYNERA detectará si cada documento contiene texto o si necesita análisis de imagen.</p><div><span>PDF con texto</span><span>Factura escaneada</span><span>Varias páginas</span></div></div> : <>

@@ -46,6 +46,7 @@ import {
   TrendingDown,
   TrendingUp,
   Truck,
+  Trash2,
   Upload,
   Users,
   WalletCards,
@@ -64,6 +65,7 @@ import {
   suppliers,
 } from "../data/demo-data";
 import { InvoiceIntelligence } from "../components/invoices/InvoiceIntelligence";
+import { ACTIVE_MODE_KEY, DEMO_STATE_KEY, REAL_STATE_KEY, modeStateKey, sanitizeInvoices, type DataMode } from "../lib/state/mode-storage";
 
 type Module =
   | "control"
@@ -289,30 +291,34 @@ function SalesChart({ small = false }: { small?: boolean }) {
 export default function Home() {
   const [module, setModule] = useState<Module>("control");
   const [branch, setBranch] = useState("Todas las sucursales");
+  const [mode, setMode] = useState<DataMode>(() => typeof window !== "undefined" && localStorage.getItem(ACTIVE_MODE_KEY) === "real" ? "real" : "demo");
+  const readModeState = (selectedMode: DataMode) => { if (typeof window === "undefined") return { stocks: {}, invoices: [] }; try { return JSON.parse(localStorage.getItem(selectedMode === "demo" ? DEMO_STATE_KEY : REAL_STATE_KEY) || "{}"); } catch { return { stocks: {}, invoices: [] }; } };
   const [stocks, setStocks] = useState<Record<string, number>>(() => {
     if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(localStorage.getItem("synera-stocks") || "{}");
-    } catch {
-      return {};
-    }
+    const selectedMode = localStorage.getItem(ACTIVE_MODE_KEY) === "real" ? "real" : "demo";
+    return readModeState(selectedMode).stocks || {};
   });
+  const [modeInvoices, setModeInvoices] = useState<import("../lib/invoices/types").Invoice[]>(() => readModeState(mode).invoices || []);
   const [toast, setToast] = useState("");
   const [tour, setTour] = useState(false);
   const [mobile, setMobile] = useState(false);
   const saveStocks = (next: Record<string, number>) => {
     setStocks(next);
-    localStorage.setItem("synera-stocks", JSON.stringify(next));
+    localStorage.setItem(modeStateKey(mode), JSON.stringify({ ...readModeState(mode), stocks: next, invoices: modeInvoices }));
   };
+  const saveInvoices = (next: import("../lib/invoices/types").Invoice[]) => { const structured = sanitizeInvoices(next); setModeInvoices(structured); try { localStorage.setItem(modeStateKey(mode), JSON.stringify({ ...readModeState(mode), stocks, invoices: structured })); } catch { notify("No fue posible guardar todos los resultados en este dispositivo"); } };
+  const switchMode = (next: DataMode) => { if (next === mode) return; const message = next === "real" ? "Está entrando al entorno de datos reales. Los datos de demostración no se mostrarán." : "Está entrando al entorno de demostración. Sus datos reales permanecerán guardados en este dispositivo."; if (!window.confirm(message)) return; const state = readModeState(next); setMode(next); setStocks(state.stocks || {}); setModeInvoices(state.invoices || []); localStorage.setItem(ACTIVE_MODE_KEY, next); };
   const notify = (m: string) => {
     setToast(m);
     setTimeout(() => setToast(""), 2800);
   };
   const reset = () => {
-    localStorage.removeItem("synera-stocks");
+    localStorage.removeItem(DEMO_STATE_KEY);
     setStocks({});
+    setModeInvoices([]);
     notify("Datos demo restablecidos");
   };
+  const clearReal = () => { if (!window.confirm("Esta acción eliminará los datos reales almacenados localmente en este dispositivo. Los datos demo no serán afectados.")) return; localStorage.removeItem(REAL_STATE_KEY); setStocks({}); setModeInvoices([]); notify("Datos reales eliminados"); };
   const title = nav.find((x) => x[0] === module)?.[1];
   return (
     <div className="app-shell">
@@ -348,9 +354,9 @@ export default function Home() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button onClick={() => setTour(true)}>
+          {mode === "demo" && <button onClick={() => setTour(true)}>
             <Play size={17} /> Iniciar recorrido demo
-          </button>
+          </button>}
           <div className="mission">
             “Simplificamos el trabajo para dedicar más tiempo a lo que realmente
             importa.”
@@ -375,6 +381,7 @@ export default function Home() {
             <h1>{title}</h1>
           </div>
           <div className="header-actions">
+            <div className="mode-switch"><button className={mode === "demo" ? "active" : ""} onClick={() => switchMode("demo")}>Demo</button><button className={mode === "real" ? "active real" : ""} onClick={() => switchMode("real")}>Datos reales</button></div>
             <Select value={branch} onChange={setBranch} label="Sucursal">
               <option>Todas las sucursales</option>
               {branches.map((x) => (
@@ -389,10 +396,11 @@ export default function Home() {
           </div>
         </header>
         <div className="content">
+          {mode === "real" && module !== "compras" ? <RealEmpty module={module} go={setModule} /> : <>
           {module === "control" && <Control branch={branch} go={setModule} />}{" "}
           {module === "ventas" && <Sales />}{" "}
           {module === "compras" && (
-            <Purchases stocks={stocks} save={saveStocks} notify={notify} />
+            <Purchases stocks={stocks} save={saveStocks} notify={notify} mode={mode} analyzedInvoices={modeInvoices} saveInvoices={saveInvoices} />
           )}{" "}
           {module === "inventario" && (
             <Inventory stocks={stocks} save={saveStocks} notify={notify} />
@@ -400,6 +408,7 @@ export default function Home() {
           {module === "proveedores" && <Suppliers />}{" "}
           {module === "planilla" && <Payroll notify={notify} />}{" "}
           {module === "reportes" && <Reports notify={notify} />}
+          </>}
         </div>
       </main>
       {toast && (
@@ -417,9 +426,9 @@ export default function Home() {
           }}
         />
       )}
-      <button className="reset" onClick={reset}>
+      {mode === "demo" ? <button className="reset" onClick={reset}>
         <RefreshCw size={14} /> Restablecer datos demo
-      </button>
+      </button> : <button className="reset real-clear" onClick={clearReal}><Trash2 size={14}/> Limpiar datos reales</button>}
     </div>
   );
 }
@@ -602,6 +611,11 @@ function Control({ branch, go }: { branch: string; go: (m: Module) => void }) {
   );
 }
 
+function RealEmpty({ module, go }: { module: Module; go: (module: Module) => void }) {
+  const labels: Record<Module, string> = { control: "Centro de Control", ventas: "Ventas", compras: "Compras", inventario: "Inventario", proveedores: "Proveedores", planilla: "Planilla", reportes: "Reportes" };
+  return <section className="real-empty"><div className="real-empty-icon"><BarChart3/></div><span className="eyebrow">DATOS REALES · {labels[module].toUpperCase()}</span><h2>Aún no hay información disponible</h2><p>Comience cargando facturas o registrando datos para generar indicadores. SYNERA no mostrará datos ficticios dentro de este entorno.</p><button className="primary" onClick={() => go("compras")}><ReceiptText size={17}/> Analizar facturas</button></section>;
+}
+
 function Sales() {
   return (
     <>
@@ -779,12 +793,18 @@ function Purchases({
   stocks,
   save,
   notify,
+  mode,
+  analyzedInvoices,
+  saveInvoices,
 }: {
   stocks: Record<string, number>;
   save: (x: Record<string, number>) => void;
   notify: (s: string) => void;
+  mode: DataMode;
+  analyzedInvoices: import("../lib/invoices/types").Invoice[];
+  saveInvoices: (invoices: import("../lib/invoices/types").Invoice[]) => void;
 }) {
-  const [tab, setTab] = useState("Facturas");
+  const [tab, setTab] = useState(mode === "real" ? "Analizar facturas" : "Facturas");
   const [flow, setFlow] = useState(false);
   const [step, setStep] = useState(0);
   const confirm = () => {
@@ -794,14 +814,14 @@ function Purchases({
   };
   return (
     <>
-      {tab === "Analizar facturas" ? (
+      {tab === "Analizar facturas" || mode === "real" ? (
         <>
           <div className="tabs">
-            {["Resumen", "Facturas", "Analizar facturas", "Productos detectados", "Entradas pendientes", "Historial de compras"].map((t) => (
+            {(mode === "real" ? ["Analizar facturas"] : ["Resumen", "Facturas", "Analizar facturas", "Productos detectados", "Entradas pendientes", "Historial de compras"]).map((t) => (
               <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>
             ))}
           </div>
-          <InvoiceIntelligence notify={notify} />
+          <InvoiceIntelligence key={mode} notify={notify} mode={mode} initialInvoices={analyzedInvoices} onInvoicesChange={saveInvoices} />
         </>
       ) : (
       <>
