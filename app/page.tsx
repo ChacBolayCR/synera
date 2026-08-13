@@ -63,6 +63,7 @@ import {
   products,
   suppliers,
 } from "../data/demo-data";
+import { InvoiceIntelligence } from "../components/invoices/InvoiceIntelligence";
 
 type Module =
   | "control"
@@ -793,6 +794,17 @@ function Purchases({
   };
   return (
     <>
+      {tab === "Analizar facturas" ? (
+        <>
+          <div className="tabs">
+            {["Resumen", "Facturas", "Analizar facturas", "Productos detectados", "Entradas pendientes", "Historial de compras"].map((t) => (
+              <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>
+            ))}
+          </div>
+          <InvoiceIntelligence notify={notify} />
+        </>
+      ) : (
+      <>
       <div className="section-intro">
         <div>
           <h2>Compras y facturas</h2>
@@ -812,9 +824,10 @@ function Purchases({
         </button>
       </div>
       <div className="tabs">
-        {[
+        {[ 
           "Resumen",
           "Facturas",
+          "Analizar facturas",
           "Productos detectados",
           "Entradas pendientes",
           "Historial de compras",
@@ -1018,6 +1031,8 @@ function Purchases({
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </>
   );
